@@ -588,19 +588,61 @@
     medir();
   }
 
+  /* Deslizar con el dedo (o arrastrar con el mouse) hacia un lado u otro.
+     Mientras se arrastra, el elemento sigue al dedo un poco; al soltar, si se movió
+     lo suficiente, avanza o retrocede. Un arrastre nunca cuenta como clic. */
+  function deslizar(zona, mover, onAnt, onSig) {
+    var x0 = 0, y0 = 0, dx = 0, activo = false, horizontal = null, recien = false;
+    zona.style.touchAction = "pan-y";
+    zona.addEventListener("pointerdown", function (e) {
+      if (e.button > 0) return;
+      activo = true; horizontal = null; dx = 0; x0 = e.clientX; y0 = e.clientY;
+    });
+    zona.addEventListener("pointermove", function (e) {
+      if (!activo) return;
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (horizontal === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
+        horizontal = Math.abs(mx) > Math.abs(my);
+        if (horizontal) { try { zona.setPointerCapture(e.pointerId); } catch (er) {} zona.classList.add("is-arrastrando"); }
+      }
+      if (horizontal) { dx = mx; if (mover) mover.style.transform = "translateX(" + (dx * 0.35).toFixed(1) + "px)"; }
+    });
+    function soltar() {
+      if (!activo) return;
+      activo = false;
+      zona.classList.remove("is-arrastrando");
+      if (mover) mover.style.transform = "";
+      if (horizontal && Math.abs(dx) > 45) {
+        recien = true; setTimeout(function () { recien = false; }, 350);
+        if (dx < 0) onSig(); else onAnt();
+      }
+    }
+    zona.addEventListener("pointerup", soltar);
+    zona.addEventListener("pointercancel", soltar);
+    zona.addEventListener("click", function (e) { if (recien) { e.preventDefault(); e.stopPropagation(); } }, true);
+    zona.addEventListener("dragstart", function (e) { e.preventDefault(); });
+  }
+
   /* Estados del equipo: nuevo, caja abierta, excelente, muy bueno.
-     Pasa sola de uno a otro mientras se ve; si la persona elige uno, se queda ahí. */
+     Pasa sola de uno a otro mientras se ve. La persona también puede elegir uno
+     (pestaña, punto de la escala, arrastrando la escala o deslizando el dibujo):
+     se queda ahí 10 segundos y después sigue pasando sola. */
   function estados() {
     $$("[data-estados]").forEach(function (sec) {
       var tabs = $$(".estado-tab", sec), panels = $$(".estado-panel", sec), pie = $(".estados__pie", sec);
-      var k = -1, auto = !QUIETO, visible = false, t;
+      var puntos = $$(".escala__punto", sec), linea = $(".escala__linea", sec), marco = $(".estados__marco", sec);
+      var k = -1, auto = !QUIETO, fijo = QUIETO, visible = false, t;
       function poner(i, usuario) {
-        if (usuario) { auto = false; clearTimeout(t); sec.classList.remove("is-auto"); }
+        if (usuario) {
+          auto = false; clearTimeout(t); sec.classList.remove("is-auto");
+          if (!fijo) t = setTimeout(function () { auto = true; sec.classList.add("is-auto"); agendar(); }, 10000);
+        }
         if (i === k) return;
         k = i;
         sec.setAttribute("data-nivel", i);
         sec.style.setProperty("--nivel", i);
         tabs.forEach(function (b, j) { b.setAttribute("aria-selected", String(j === i)); b.tabIndex = j === i ? 0 : -1; });
+        puntos.forEach(function (b, j) { b.setAttribute("aria-pressed", String(j === i)); });
         panels.forEach(function (p, j) { p.classList.toggle("is-activo", j === i); });
         if (pie) { pie.textContent = tabs[i].getAttribute("data-pie"); pie.classList.remove("is-cambio"); void pie.offsetWidth; pie.classList.add("is-cambio"); }
         if (auto) {
@@ -624,9 +666,29 @@
           poner(j, true); tabs[j].focus();
         });
       });
+      /* la escala: tocar un punto, o arrastrar a lo largo de la línea */
+      puntos.forEach(function (b, i) { b.addEventListener("click", function () { poner(i, true); }); });
+      if (linea) {
+        var arrastrando = false;
+        var desdeX = function (e) {
+          var r = linea.getBoundingClientRect();
+          return Math.max(0, Math.min(puntos.length - 1, Math.floor((e.clientX - r.left) / r.width * puntos.length)));
+        };
+        linea.style.touchAction = "none";
+        linea.addEventListener("pointerdown", function (e) {
+          arrastrando = true; sec.classList.add("is-escala");
+          try { linea.setPointerCapture(e.pointerId); } catch (er) {}
+          poner(desdeX(e), true);
+        });
+        linea.addEventListener("pointermove", function (e) { if (arrastrando) poner(desdeX(e), true); });
+        ["pointerup", "pointercancel"].forEach(function (ev) { linea.addEventListener(ev, function () { arrastrando = false; sec.classList.remove("is-escala"); }); });
+      }
+      /* el dibujo: deslizar a la izquierda para el siguiente, a la derecha para el anterior */
+      if (marco) deslizar(marco, $(".ilu", marco), function () { poner((k - 1 + tabs.length) % tabs.length, true); }, function () { poner((k + 1) % tabs.length, true); });
+
       var ancla = location.hash.slice(1), desde = 0;
       NIVELES.forEach(function (nv, j) { if (nv[0] === ancla) desde = j; });
-      if (ancla && desde) { auto = false; }
+      if (ancla && desde) { auto = false; fijo = true; }
       poner(desde, !auto);
       if ("IntersectionObserver" in window) {
         new IntersectionObserver(function (es) { visible = es[0].isIntersecting; }, { threshold: 0.35 }).observe(sec);
@@ -713,7 +775,10 @@
         ICONO.flecha + '</a>';
     }).join("");
     /* Arriba de la foto: la escala de estado (nuevo → muy bueno), nunca encima del equipo. */
-    escena.innerHTML = '<div class="escena__arriba"><span class="escena__num" aria-hidden="true"></span>' +
+    escena.innerHTML = '<div class="escena__arriba"><span class="escena__pager">' +
+      '<button class="escena__flecha escena__flecha--ant" type="button" aria-label="Equipo anterior">' + ICONO.flecha + '</button>' +
+      '<span class="escena__num" aria-live="polite"></span>' +
+      '<button class="escena__flecha" type="button" aria-label="Equipo siguiente">' + ICONO.flecha + '</button></span>' +
       '<a class="control" href="estados.html" title="Qué significa cada estado">' +
       '<span class="control__escala" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="control__marca"></span></span>' +
       '<span class="control__txt"></span></a></div>' +
@@ -723,9 +788,13 @@
         return '<img src="' + esc(f.g) + '" alt="' + esc(p.nombre + " " + p.detalle) + '"' + (f.w > f.h * 1.05 ? ' class="es-ancha"' : '') +
           (i ? ' fetchpriority="low"' : ' fetchpriority="high"') + ' decoding="async">';
       }).join("") +
-      '<span class="escena__scan" aria-hidden="true"></span></a>';
+      '<span class="escena__scan" aria-hidden="true"></span></a>' +
+      /* barras como en las historias: muestran cuál se ve y cuánto falta; se pueden tocar */
+      (items.length > 1 ? '<div class="escena__barras" role="group" aria-label="Elegí un equipo">' + items.map(function (p, i) {
+        return '<button type="button" aria-label="' + esc(p.nombre) + '" data-i="' + i + '"><i></i></button>';
+      }).join("") + '</div>' : '');
 
-    var filas = $$(".indice__fila", indice), imgs = $$(".escena__marco img", escena);
+    var filas = $$(".indice__fila", indice), imgs = $$(".escena__marco img", escena), barras = $$(".escena__barras button", escena);
     var marcoEl = $(".escena__marco", escena), numEl = $(".escena__num", escena), actual = -1;
     function reiniciar(el, clase) { el.classList.remove(clase); void el.offsetWidth; el.classList.add(clase); }
     function activar(i) {
@@ -735,6 +804,8 @@
       imgs.forEach(function (im, j) { im.classList.toggle("is-activa", j === i); im.classList.toggle("is-sale", j === antes); });
       if (antes > -1) setTimeout(function () { if (actual !== antes) imgs[antes].classList.remove("is-sale"); }, 1150);
       filas.forEach(function (fl, j) { fl.classList.toggle("is-activa", j === i); });
+      barras.forEach(function (b, j) { b.classList.toggle("is-hecha", j < i); b.classList.remove("is-activa"); b.setAttribute("aria-pressed", String(j === i)); });
+      if (barras[i]) { void barras[i].offsetWidth; barras[i].classList.add("is-activa"); }
       sec.style.setProperty("--campo", f.campo || "#E2DBCB");
       sec.style.setProperty("--tinta", f.tinta || "#24332F");
       marcoEl.href = "producto.html?id=" + encodeURIComponent(p.id);
@@ -761,10 +832,25 @@
       if (QUIETO || items.length < 2) return;
       giroT = setTimeout(function () {
         var r = sec.getBoundingClientRect();
-        if (!d.hidden && r.bottom > 120 && !sec.classList.contains("is-pausa")) activar((actual + 1) % items.length);
+        if (!d.hidden && r.bottom > 120 && !sec.classList.contains("is-pausa") && Date.now() > pausaHasta) activar((actual + 1) % items.length);
         agendar();
       }, 5200);
     }
+    /* Elegir a mano (flechas, barras o deslizando): se queda ese equipo 10 segundos
+       y después sigue pasando solo. */
+    var pausaHasta = 0;
+    function elegir(i) {
+      activar((i + items.length) % items.length);
+      pausaHasta = Date.now() + 10000;
+      sec.classList.add("is-manual");
+      clearTimeout(elegir.t);
+      elegir.t = setTimeout(function () { sec.classList.remove("is-manual"); }, 10000);
+      agendar();
+    }
+    $(".escena__flecha--ant", escena).addEventListener("click", function () { elegir(actual - 1); });
+    $(".escena__flecha:not(.escena__flecha--ant)", escena).addEventListener("click", function () { elegir(actual + 1); });
+    barras.forEach(function (b, i) { b.addEventListener("click", function () { elegir(i); }); });
+    if (items.length > 1) deslizar(marcoEl, marcoEl, function () { elegir(actual - 1); }, function () { elegir(actual + 1); });
     var fino = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     filas.forEach(function (fl, i) {
       if (fino) fl.addEventListener("mouseenter", function () { activar(i); });
