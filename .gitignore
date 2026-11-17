@@ -1,0 +1,5 @@
+_anterior/
+.DS_Store
+.claude/
+__pycache__/
+herramientas/vista-*.jpg

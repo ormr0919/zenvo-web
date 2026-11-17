@@ -1,0 +1,100 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Auditoría</title>
+<style>body{margin:0;font:13px/1.4 ui-monospace,monospace;background:#fff}iframe{border:0;position:absolute;left:-9999px;top:0}pre{padding:1rem;white-space:pre-wrap}</style></head><body><pre id="out">Corriendo…</pre>
+<script>
+/* Abre cada página en varios anchos, la recorre entera y busca textos que se pisen entre sí. */
+try { sessionStorage.setItem("zenvo:telon", "1"); } catch (e) {}
+const SOLO = new URLSearchParams(location.search).get("solo");
+const PAGINAS = SOLO ? SOLO.split("|") : ["index.html", "catalogo.html", "producto.html?id=pixel-11-pro", "producto.html?id=pedido-pixel-9-pro-xl",
+  "producto.html?id=pixel-10-pro", "verificacion.html", "estados.html", "a-pedido.html", "como-comprar.html", "preguntas.html", "404.html"];
+const ANCHOS = [360, 390, 768, 1024, 1280, 1440];
+const IGNORAR = ".portada__palabra, .cinta, .entregados, .riel, .menu, .cursor, .aviso-copia, .visor, .pie__gigante, .galeria__pista, .revision__ventana, .solo-lector, .saltar, .odo, .ilu";
+const out = document.getElementById("out");
+const espera = ms => new Promise(r => setTimeout(r, ms));
+
+function rectsTexto(W) {
+  const D = W.document, res = [];
+  const tw = D.createTreeWalker(D.body, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = tw.nextNode())) {
+    if (!n.textContent.trim()) continue;
+    const el = n.parentElement;
+    if (!el || el.closest(IGNORAR)) continue;
+    const cs = W.getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) === 0) continue;
+    if (el.closest("[hidden]") || el.closest(".pregunta:not(.is-abierta) .pregunta__r")) continue;
+    const r = D.createRange(); r.selectNodeContents(n);
+    /* la caja del texto incluye el aire de la fuente: se mide solo la franja donde hay letra */
+    const fs = parseFloat(cs.fontSize);
+    for (const c of r.getClientRects()) {
+      if (c.width < 2 || c.height < 2) continue;
+      const h = Math.min(c.height, fs * 0.78), y = c.top + c.height / 2 - h / 2;
+      res.push({ el, t: n.textContent.trim().slice(0, 32), x: c.left, y: y + W.scrollY, w: c.width, h, fijo: !!el.closest(".cab, .muelle, .filtros") });
+    }
+  }
+  return res;
+}
+function choques(lista) {
+  const malos = [];
+  for (let i = 0; i < lista.length; i++) for (let j = i + 1; j < lista.length; j++) {
+    const a = lista[i], b = lista[j];
+    if (a.el === b.el || a.fijo || b.fijo) continue;
+    const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const iy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    if (ix > 3 && iy > Math.min(a.h, b.h) * 0.35) malos.push(`"${a.t}" ⟂ "${b.t}"`);
+  }
+  return malos;
+}
+function cortados(W) {
+  const D = W.document, malos = [];
+  D.querySelectorAll("main *, footer *").forEach(el => {
+    if (el.closest(IGNORAR) || !el.childNodes.length) return;
+    const tieneTexto = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (!tieneTexto) return;
+    const cs = W.getComputedStyle(el);
+    if (cs.overflow === "visible" && cs.textOverflow !== "ellipsis") return;
+    if (el.scrollWidth > el.clientWidth + 2 && cs.whiteSpace === "nowrap") malos.push("cortado: " + el.textContent.trim().slice(0, 30));
+  });
+  return malos;
+}
+async function probar(pag, ancho) {
+  const f = document.createElement("iframe");
+  f.width = ancho; f.height = 900; f.src = "../" + pag;
+  document.body.appendChild(f);
+  await new Promise(r => f.onload = r);
+  await espera(1600);
+  const W = f.contentWindow;
+  const alto = W.document.documentElement.scrollHeight;
+  for (let y = 0; y < alto; y += 600) { W.scrollTo(0, y); await espera(70); }
+  await espera(2000);
+  /* se mide el estado final: todo lo que tiene animación de entrada, ya entrado */
+  W.document.querySelectorAll("[data-aparece],[data-titulo]").forEach(e => e.classList.add("is-visto"));
+  const quieto = W.document.createElement("style");
+  quieto.textContent = "*,*::before,*::after{transition:none!important;animation:none!important}";
+  W.document.head.appendChild(quieto);
+  W.scrollTo(0, 0); await espera(400);
+  const ancho_doc = W.document.documentElement.scrollWidth;
+  let culpable = "";
+  if (ancho_doc > ancho) {
+    let max = 0;
+    W.document.querySelectorAll("body *").forEach(e => {
+      const c = e.getBoundingClientRect();
+      if (c.right > ancho + 1 && c.right > max && !e.closest(".riel, .cinta, .entregados, .galeria__pista, .menu")) { max = c.right; culpable = (e.className && e.className.baseVal === undefined ? e.className : e.tagName) + " → " + Math.round(c.right); }
+    });
+  }
+  const r = { choques: choques(rectsTexto(W)), cortados: cortados(W), desborde: ancho_doc > ancho ? `la página mide ${ancho_doc}px en ${ancho}px (${culpable})` : "" };
+  f.remove();
+  return r;
+}
+(async () => {
+  const lineas = []; let total = 0;
+  for (const pag of PAGINAS) for (const a of ANCHOS) {
+    const r = await probar(pag, a);
+    const n = r.choques.length + r.cortados.length + (r.desborde ? 1 : 0);
+    total += n;
+    lineas.push(`${n ? "✗" : "✓"} ${pag} @${a}px` + (n ? "\n   " + [...new Set(r.choques)].slice(0, 6).concat(r.cortados.slice(0, 4), r.desborde ? [r.desborde] : []).join("\n   ") : ""));
+    out.textContent = lineas.join("\n") + "\n…";
+  }
+  out.textContent = lineas.join("\n") + `\n\nTOTAL DE PROBLEMAS: ${total}`;
+  window.LISTO = total;
+})();
+</script></body></html>
