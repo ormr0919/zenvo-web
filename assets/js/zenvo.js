@@ -754,6 +754,56 @@
     return h + "</span>";
   }
 
+  /* Cinta que pasa sola y que también se mueve a mano: con el dedo (scroll nativo),
+     arrastrando con el mouse, con la ruedita o con las flechas. Al tocarla se frena,
+     y 2,5 segundos después de soltarla sigue sola. El contenido viene repetido una
+     cantidad par de veces, así que al llegar a la mitad vuelve al principio sin que se note. */
+  function carrusel(el, flechas) {
+    if (el.dataset.carrusel) return;
+    el.dataset.carrusel = "1";
+    var riel = el.firstElementChild, pausa = 0, tocando = false, encima = false, visible = true, acum = 0, antes = 0;
+    var VEL = 0.028; /* pixeles por milisegundo (28 px por segundo), igual en cualquier pantalla */
+    function mitad() { return riel.scrollWidth / 2; }
+    function frenar(ms) { pausa = Math.max(pausa, Date.now() + (ms || 2500)); }
+    function envolver() {
+      var m = mitad();
+      if (m <= 0) return;
+      if (el.scrollLeft >= m) el.scrollLeft -= m;
+      else if (el.scrollLeft <= 0) el.scrollLeft += m;
+    }
+    function paso(t) {
+      var dt = antes ? Math.min(64, t - antes) : 0;
+      antes = t;
+      if (!QUIETO && visible && !d.hidden && !tocando && !encima && Date.now() > pausa) {
+        acum += dt * VEL;
+        if (acum >= 1) { var n = Math.floor(acum); acum -= n; el.scrollLeft += n; }
+      }
+      envolver();
+      requestAnimationFrame(paso);
+    }
+    el.addEventListener("pointerdown", function () { tocando = true; frenar(); });
+    window.addEventListener("pointerup", function () { if (tocando) { tocando = false; frenar(); } });
+    el.addEventListener("touchstart", function () { tocando = true; frenar(); }, { passive: true });
+    el.addEventListener("touchend", function () { tocando = false; frenar(); }, { passive: true });
+    el.addEventListener("wheel", function () { frenar(); }, { passive: true });
+    el.addEventListener("mouseenter", function () { encima = true; });
+    el.addEventListener("mouseleave", function () { encima = false; frenar(800); });
+    el.addEventListener("focusin", function () { frenar(6000); });
+    arrastre(el);
+    if (flechas) {
+      $$("button", flechas).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var paso1 = (el.querySelector(".entregado") || el).getBoundingClientRect().width + 12;
+          frenar(4000);
+          el.scrollBy({ left: paso1 * +b.getAttribute("data-dir"), behavior: QUIETO ? "auto" : "smooth" });
+        });
+      });
+    }
+    if ("IntersectionObserver" in window) new IntersectionObserver(function (es) { visible = es[0].isIntersecting; }).observe(el);
+    el.scrollLeft = 1;
+    requestAnimationFrame(paso);
+  }
+
   /* ---------- 8. Inicio ---------- */
   var giroT = null;
   function palabraDe(p) {
@@ -774,27 +824,25 @@
         '<span class="pre">' + (p.precio ? '<small>Desde</small>' + gs(p.precio) : '<small>Precio</small>Consultá') + '</span>' +
         ICONO.flecha + '</a>';
     }).join("");
-    /* Arriba de la foto: la escala de estado (nuevo → muy bueno), nunca encima del equipo. */
+    /* Arriba de la foto (nunca encima del equipo): flechas y un cuadradito por equipo,
+       que coincide con el número (el 01 marca el primero). A la derecha, el número y el estado. */
     escena.innerHTML = '<div class="escena__arriba"><span class="escena__pager">' +
       '<button class="escena__flecha escena__flecha--ant" type="button" aria-label="Equipo anterior">' + ICONO.flecha + '</button>' +
-      '<span class="escena__num" aria-live="polite"></span>' +
+      '<span class="escena__puntos" role="group" aria-label="Elegí un equipo">' + items.map(function (p, i) {
+        return '<button type="button" data-i="' + i + '" aria-label="' + dos(i + 1) + ': ' + esc(p.nombre) + '"></button>';
+      }).join("") + '</span>' +
       '<button class="escena__flecha" type="button" aria-label="Equipo siguiente">' + ICONO.flecha + '</button></span>' +
-      '<a class="control" href="estados.html" title="Qué significa cada estado">' +
-      '<span class="control__escala" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="control__marca"></span></span>' +
-      '<span class="control__txt"></span></a></div>' +
+      '<span class="escena__info"><span class="escena__num" aria-live="polite"></span>' +
+      '<a class="control" href="estados.html" title="Qué significa este estado"><span class="control__txt"></span> ↗</a></span></div>' +
       '<a class="escena__marco" href="#" data-cursor="Ver">' +
       items.map(function (p, i) {
         var f = p.fotos[0];
         return '<img src="' + esc(f.g) + '" alt="' + esc(p.nombre + " " + p.detalle) + '"' + (f.w > f.h * 1.05 ? ' class="es-ancha"' : '') +
           (i ? ' fetchpriority="low"' : ' fetchpriority="high"') + ' decoding="async">';
       }).join("") +
-      '<span class="escena__scan" aria-hidden="true"></span></a>' +
-      /* barras como en las historias: muestran cuál se ve y cuánto falta; se pueden tocar */
-      (items.length > 1 ? '<div class="escena__barras" role="group" aria-label="Elegí un equipo">' + items.map(function (p, i) {
-        return '<button type="button" aria-label="' + esc(p.nombre) + '" data-i="' + i + '"><i></i></button>';
-      }).join("") + '</div>' : '');
+      '<span class="escena__scan" aria-hidden="true"></span></a>';
 
-    var filas = $$(".indice__fila", indice), imgs = $$(".escena__marco img", escena), barras = $$(".escena__barras button", escena);
+    var filas = $$(".indice__fila", indice), imgs = $$(".escena__marco img", escena), barras = $$(".escena__puntos button", escena);
     var marcoEl = $(".escena__marco", escena), numEl = $(".escena__num", escena), actual = -1;
     function reiniciar(el, clase) { el.classList.remove(clase); void el.offsetWidth; el.classList.add(clase); }
     function activar(i) {
@@ -804,7 +852,8 @@
       imgs.forEach(function (im, j) { im.classList.toggle("is-activa", j === i); im.classList.toggle("is-sale", j === antes); });
       if (antes > -1) setTimeout(function () { if (actual !== antes) imgs[antes].classList.remove("is-sale"); }, 1150);
       filas.forEach(function (fl, j) { fl.classList.toggle("is-activa", j === i); });
-      barras.forEach(function (b, j) { b.classList.toggle("is-hecha", j < i); b.classList.remove("is-activa"); b.setAttribute("aria-pressed", String(j === i)); });
+      /* solo se marca el cuadradito del equipo que se ve: el mismo número que dice "N.º" */
+      barras.forEach(function (b, j) { b.classList.remove("is-activa"); b.setAttribute("aria-pressed", String(j === i)); });
       if (barras[i]) { void barras[i].offsetWidth; barras[i].classList.add("is-activa"); }
       sec.style.setProperty("--campo", f.campo || "#E2DBCB");
       sec.style.setProperty("--tinta", f.tinta || "#24332F");
@@ -814,7 +863,6 @@
       var nv = nivelDe(p.condicion), ctl = $(".control", escena), txt = $(".control__txt", escena);
       ctl.hidden = nv < 0;
       if (nv > -1) {
-        ctl.style.setProperty("--nivel", nv);
         ctl.href = "estados.html#" + NIVELES[nv][0];
         txt.textContent = NIVELES[nv][1];
         reiniciar(txt, "is-cambio");
@@ -907,13 +955,20 @@
       if (ven.length < 3) { secE.hidden = true; }
       else {
         secE.hidden = false;
-        var grupo = '<div class="entregados__grupo">' + ven.map(function (p) {
-          return '<a class="entregado" href="producto.html?id=' + encodeURIComponent(p.id) + '" data-cursor="Ver"><div class="entregado__foto"><img src="' + esc(p.fotos[0].m) +
-            '" alt="' + esc(p.nombre) + '" loading="lazy" decoding="async"></div><p><small>Entregado</small>' + esc(p.nombre) + '</p></a>';
-        }).join("") + '</div>';
+        /* el grupo se repite para que la cinta nunca se corte; las copias no las lee el lector de pantalla */
+        var grupo = function (copia) {
+          return '<div class="entregados__grupo"' + (copia ? ' aria-hidden="true"' : '') + '>' + ven.map(function (p) {
+            return '<a class="entregado" href="producto.html?id=' + encodeURIComponent(p.id) + '" data-cursor="Ver"' + (copia ? ' tabindex="-1"' : '') +
+              '><div class="entregado__foto"><img src="' + esc(p.fotos[0].m) + '" alt="' + (copia ? '' : esc(p.nombre)) +
+              '" loading="lazy" decoding="async"></div><p><small>Entregado</small>' + esc(p.nombre) + '</p></a>';
+          }).join("") + '</div>';
+        };
         var veces = Math.max(2, Math.ceil(12 / ven.length));
         veces += veces % 2;
-        e.innerHTML = '<div class="entregados__riel">' + new Array(veces + 1).join(grupo) + '</div>';
+        var h = "";
+        for (var v = 0; v < veces; v++) h += grupo(v > 0);
+        e.innerHTML = '<div class="entregados__riel">' + h + '</div>';
+        carrusel(e, $("[data-flechas='entregados']"));
       }
     }
     conectarWA();

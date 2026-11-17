@@ -191,9 +191,15 @@
 </section>
 
 <section class="seccion seccion--corta" style="padding-top:0">
-  <div class="contenedor" style="margin-bottom:2rem">
-    <span class="rotulo rotulo--linea" data-aparece>07 · Ya entregados</span>
-    <h2 class="subtitulo" data-titulo style="margin-top:1rem">Equipos que ya pasaron por ZENVO</h2>
+  <div class="contenedor entregados__cabeza" style="margin-bottom:2rem">
+    <div>
+      <span class="rotulo rotulo--linea" data-aparece>07 · Ya entregados</span>
+      <h2 class="subtitulo" data-titulo style="margin-top:1rem">Equipos que ya pasaron por ZENVO</h2>
+    </div>
+    <div class="flechas" data-flechas="entregados" data-aparece>
+      <button type="button" data-dir="-1" aria-label="Ver los anteriores"><svg class="flecha" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 8h13M9 3l5 5-5 5"/></svg></button>
+      <button type="button" data-dir="1" aria-label="Ver los siguientes"><svg class="flecha" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 8h13M9 3l5 5-5 5"/></svg></button>
+    </div>
   </div>
   <div class="entregados" id="entregados"></div>
 </section>

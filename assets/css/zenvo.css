@@ -213,31 +213,30 @@ main { display: block; padding-top: var(--cab); }
 .escena__scan { position: absolute; left: 0; right: 0; top: 0; height: 28%; z-index: 4; pointer-events: none; opacity: 0; background: linear-gradient(to bottom, transparent, color-mix(in srgb, #fff 26%, transparent) 92%, #fff 92%, #fff 93%, transparent 93%); }
 .escena.is-escaneo .escena__scan { animation: escaneo 1.5s var(--entra) .25s both; }
 @keyframes escaneo { 0% { opacity: 0; transform: translateY(-100%); } 12% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; transform: translateY(360%); } }
-/* arriba de la foto: el número de ficha y la escala de estado (nunca pisa el equipo) */
-.escena__arriba { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .7rem; font-family: var(--f-mono); font-size: .625rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--fg2); white-space: nowrap; }
-/* la foto se puede deslizar, elegir con flechas o con las barras de arriba; y también pasa sola */
+/* Arriba de la foto (nunca pisa el equipo): a la izquierda, flechas y un cuadradito por equipo;
+   a la derecha, "N.º 01 / 05" y el estado. El cuadradito marcado es siempre el del número. */
 .escena { display: grid; }
-.escena__arriba { grid-row: 1; }
+.escena__arriba { grid-row: 1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem; padding-bottom: .7rem; font-family: var(--f-mono); font-size: .625rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--fg2); white-space: nowrap; }
+/* la foto se puede deslizar, elegir con las flechas o los cuadraditos; y también pasa sola */
 .escena__marco { grid-row: 2; grid-column: 1; cursor: grab; transition: transform .5s var(--sale); }
 .escena__marco.is-arrastrando { cursor: grabbing; transition: none; }
-.escena__barras { grid-row: 2; grid-column: 1; align-self: start; z-index: 5; display: flex; gap: 4px; padding: .55rem .7rem 0; pointer-events: none; }
-.escena__barras button { flex: 1; height: 1.5rem; display: block; pointer-events: auto; }
-.escena__barras i { display: block; position: relative; height: 2px; background: rgba(255, 255, 255, .42); overflow: hidden; border-radius: 1px; }
-.escena__barras i::after { content: ""; position: absolute; inset: 0; background: #fff; transform: scaleX(0); transform-origin: left; }
-.escena__barras .is-hecha i::after { transform: scaleX(1); }
-.escena__barras .is-activa i::after { animation: avance 5.2s linear forwards; }
-.portada.is-pausa .escena__barras .is-activa i::after { animation-play-state: paused; }
-.portada.is-manual .escena__barras .is-activa i::after { animation: none; transform: scaleX(1); }
-.escena__pager { display: inline-flex; align-items: center; gap: .45rem; }
+.escena__pager { display: inline-flex; align-items: center; gap: .4rem; }
 .escena__flecha { width: 1.9rem; height: 1.9rem; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--linea); color: var(--ink); transition: background .3s, color .3s; }
-.escena__flecha:hover { background: var(--ink); color: var(--marfil); }
 .escena__flecha svg { width: .85rem; height: .85rem; }
 .escena__flecha--ant svg { transform: rotate(180deg); }
-.control { display: inline-flex; align-items: center; gap: .55rem; }
-.control__escala { position: relative; display: grid; grid-template-columns: repeat(4, 1.35rem); gap: 3px; }
-.control__escala i { height: .5rem; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tinta) 45%, transparent); }
-.control__marca { position: absolute; left: 0; top: -2px; height: calc(.5rem + 4px); width: 1.35rem; background: var(--tinta); transform: translateX(calc(var(--nivel, 0) * (1.35rem + 3px))); transition: transform .9s var(--sale); }
-.control__txt { display: inline-block; min-width: 6.6rem; color: var(--ink); }
+.escena__puntos { display: inline-flex; align-items: center; gap: 3px; }
+.escena__puntos button { position: relative; width: 1.35rem; height: 1.9rem; }
+.escena__puntos button::before { content: ""; position: absolute; left: 0; right: 0; top: calc(50% - .25rem); height: .5rem; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tinta) 45%, transparent); transition: background .4s; }
+.escena__puntos button[aria-pressed="true"]::before { background: var(--tinta); box-shadow: none; }
+/* debajo del cuadradito marcado, una línea fina muestra cuánto falta para pasar al siguiente */
+.escena__puntos button::after { content: ""; position: absolute; left: 0; right: 0; top: calc(50% + .45rem); height: 1px; background: var(--tinta); transform: scaleX(0); transform-origin: left; }
+.escena__puntos .is-activa::after { animation: avance 5.2s linear forwards; }
+.portada.is-pausa .escena__puntos .is-activa::after { animation-play-state: paused; }
+.portada.is-manual .escena__puntos .is-activa::after { animation: none; }
+.escena__info { display: inline-flex; align-items: center; gap: .6rem; }
+.escena__info .control::before { content: "·"; margin-right: .6rem; color: var(--fg2); }
+.control { display: inline-flex; align-items: center; gap: .25rem; color: var(--ink); }
+.control__txt { display: inline-block; color: var(--ink); }
 .control__txt.is-cambio { animation: sube-txt .6s var(--sale) both; }
 @keyframes sube-txt { from { opacity: 0; transform: translateY(.5rem); } }
 
@@ -430,11 +429,19 @@ main { display: block; padding-top: var(--cab); }
 .viaje h3 { font-family: var(--f-titulo); font-weight: 400; font-size: clamp(1.3rem, 1.9vw, 1.65rem); line-height: 1.15; }
 .viaje p { color: var(--fg2); font-size: .95rem; }
 
-.entregados { overflow: hidden; }
-.entregados__riel { display: flex; width: max-content; animation: cinta 64s linear infinite; }
-.entregados:hover .entregados__riel { animation-play-state: paused; }
-.entregados__grupo { display: flex; flex: none; gap: .75rem; padding-right: .75rem; }
-.entregado { width: clamp(9.5rem, 15vw, 13rem); flex: none; display: grid; gap: .65rem; }
+/* entregados: pasa solo, y también se desliza con el dedo, se arrastra con el mouse o se mueve con las flechas */
+.entregados { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; cursor: grab; }
+.entregados::-webkit-scrollbar { display: none; }
+.entregados.is-arrastrando { cursor: grabbing; }
+.entregados.is-arrastrando a { pointer-events: none; }
+.entregados__riel { display: flex; width: max-content; }
+.entregados__grupo { display: flex; flex: none; align-items: start; gap: .75rem; padding-right: .75rem; }
+.entregado { width: clamp(9.5rem, 15vw, 13rem); flex: none; display: grid; align-content: start; gap: .65rem; }
+.entregados__cabeza { display: flex; justify-content: space-between; align-items: flex-end; gap: 1.5rem; }
+.flechas { display: flex; gap: .5rem; flex: none; }
+.flechas button { width: 2.75rem; height: 2.75rem; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--linea); transition: background .3s, color .3s; }
+.flechas button svg { width: 1rem; height: 1rem; }
+.flechas button:first-child svg { transform: rotate(180deg); }
 .entregado__foto { aspect-ratio: 4 / 5; overflow: hidden; background: #E7E2D6; }
 .entregado__foto img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(.95); opacity: .85; transition: filter .6s, opacity .6s; }
 .entregado:hover img { filter: none; opacity: 1; }
@@ -703,7 +710,7 @@ html.con-telon::after { left: 50%; top: 50%; width: 4.25rem; height: 4.25rem; ma
 .escala__linea::before { content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 1.375rem; height: 1px; background: var(--fg2); opacity: .45; }
 .escala__punto { display: grid; justify-items: center; align-content: start; gap: .55rem; min-height: 2.75rem; padding: 1rem .15rem 0; cursor: pointer; }
 .escala__punto::before { content: ""; position: relative; z-index: 1; width: .75rem; height: .75rem; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--fg2); transition: transform .4s var(--sale); }
-.escala__punto:hover::before { transform: scale(1.3); }
+@media (hover: hover) { .escala__punto:hover::before { transform: scale(1.3); } }
 .escala__punto span { font-family: var(--f-mono); font-size: .5625rem; letter-spacing: .1em; text-transform: uppercase; color: var(--fg2); text-align: center; line-height: 1.35; transition: color .3s; }
 .escala__punto[aria-pressed="true"] span { color: var(--ink); }
 .escala__marca { position: absolute; z-index: 2; top: calc(1.375rem - .6rem); left: calc((var(--nivel) + .5) * 25%); width: 1.2rem; height: 1.2rem; margin-left: -.6rem; border-radius: 50%; background: var(--petroleo); box-shadow: 0 0 0 .35rem color-mix(in srgb, var(--petroleo) 16%, transparent); pointer-events: none; transition: left .9s var(--sale), transform .3s var(--sale); }
@@ -840,8 +847,7 @@ html.con-telon::after { left: 50%; top: 50%; width: 4.25rem; height: 4.25rem; ma
   .js [data-aparece], .pal > span, .js .chat .burbuja { opacity: 1; transform: none; }
   .js .pieza[data-aparece]::after { display: none; }
   .js .comprobante[data-aparece] .comprobante__papel { clip-path: none; }
-  .cinta__riel, .entregados__riel { animation: none; }
-  .entregados { overflow-x: auto; }
+  .cinta__riel { animation: none; }
   .escena__marco img.is-activa { clip-path: none; }
   .ilu *, .estado-panel { transition: none !important; }
   .js .rotulo--linea[data-aparece] { clip-path: none; }
@@ -853,3 +859,10 @@ html.con-telon::after { left: 50%; top: 50%; width: 4.25rem; height: 4.25rem; ma
 }
 .chip--enlace { transition: background .3s, color .3s; }
 .chip--enlace:hover { background: var(--ink); color: var(--marfil); border-color: var(--ink); }
+/* En pantallas táctiles el "hover" queda pegado después de tocar: estos efectos van solo con mouse. */
+@media (hover: hover) {
+  .escena__flecha:hover, .flechas button:hover { background: var(--ink); color: var(--marfil); }
+  .escena__puntos button:hover::before { background: color-mix(in srgb, var(--tinta) 30%, transparent); }
+  .escena__puntos button[aria-pressed="true"]:hover::before { background: var(--tinta); }
+}
+.escena__flecha:active, .flechas button:active { background: var(--ink); color: var(--marfil); }
